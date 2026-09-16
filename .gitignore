@@ -1,0 +1,19 @@
+# Qt Creator 个人配置（含本机路径）
+*.pro.user
+
+# 构建产物
+build-*/
+debug/
+release/
+Makefile*
+*.o
+moc_*.cpp
+qrc_*.cpp
+.qmake.stash
+
+# 分发包
+dist/
+*.zip
+
+# 运行时生成的本地配置
+crosshair.ini
