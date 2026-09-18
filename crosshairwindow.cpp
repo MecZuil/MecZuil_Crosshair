@@ -109,6 +109,7 @@ void CrosshairWindow::setLocked(bool locked)
     if (locked)
         m_panel->hide();
     m_lockBtn->setText(locked ? QStringLiteral("解锁") : QStringLiteral("锁定"));
+    update();
 }
 
 bool CrosshairWindow::registerHotkey()
@@ -156,8 +157,10 @@ void CrosshairWindow::paintEvent(QPaintEvent *)
 {
     QPainter p(this);
     p.setRenderHint(QPainter::Antialiasing);
-    p.setPen(QPen(QColor(0xff, 0x69, 0xb4), 2));
-    p.drawRect(rect().adjusted(1, 1, -2, -2));
+    if (!m_locked) {
+        p.setPen(QPen(Qt::white, 2));
+        p.drawRect(rect().adjusted(1, 1, -2, -2));
+    }
     const QPoint c = rect().center();
     drawDotLayer(p, c);
     drawFocusLayer(p, c);
