@@ -8,6 +8,11 @@ QString CrosshairSettings::iniPath()
     return QCoreApplication::applicationDirPath() + "/crosshair.ini";
 }
 
+QString CrosshairSettings::presetsDir()
+{
+    return QCoreApplication::applicationDirPath() + "/presets";
+}
+
 static void loadLayer(QSettings &s, const QString &group, LayerSettings &l)
 {
     s.beginGroup(group);
@@ -34,9 +39,9 @@ static void saveLayer(QSettings &s, const QString &group, const LayerSettings &l
     s.endGroup();
 }
 
-void CrosshairSettings::load()
+void CrosshairSettings::loadAppearance(const QString &path)
 {
-    QSettings s(iniPath(), QSettings::IniFormat);
+    QSettings s(path, QSettings::IniFormat);
     loadLayer(s, "dot", dot);
     loadLayer(s, "focus", focus);
     focusDistance = s.value("focus/distance", focusDistance).toInt();
@@ -45,13 +50,11 @@ void CrosshairSettings::load()
     const QStringList parts = vis.split(',');
     for (int i = 0; i < 4 && i < parts.size(); ++i)
         focusVisible[i] = parts[i].toInt() != 0;
-    windowPos = s.value("window/pos", windowPos).toPoint();
-    hotkey = s.value("window/hotkey", hotkey).toUInt();
 }
 
-void CrosshairSettings::save() const
+void CrosshairSettings::saveAppearance(const QString &path) const
 {
-    QSettings s(iniPath(), QSettings::IniFormat);
+    QSettings s(path, QSettings::IniFormat);
     saveLayer(s, "dot", dot);
     saveLayer(s, "focus", focus);
     s.setValue("focus/distance", focusDistance);
@@ -59,6 +62,20 @@ void CrosshairSettings::save() const
     s.setValue("focus/visible", QString("%1,%2,%3,%4")
                .arg(focusVisible[0]).arg(focusVisible[1])
                .arg(focusVisible[2]).arg(focusVisible[3]));
+}
+
+void CrosshairSettings::load()
+{
+    loadAppearance(iniPath());
+    QSettings s(iniPath(), QSettings::IniFormat);
+    windowPos = s.value("window/pos", windowPos).toPoint();
+    hotkey = s.value("window/hotkey", hotkey).toUInt();
+}
+
+void CrosshairSettings::save() const
+{
+    saveAppearance(iniPath());
+    QSettings s(iniPath(), QSettings::IniFormat);
     s.setValue("window/pos", windowPos);
     s.setValue("window/hotkey", hotkey);
 }

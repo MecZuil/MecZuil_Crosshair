@@ -6,6 +6,7 @@
 
 class QComboBox;
 class QGroupBox;
+class QVBoxLayout;
 class CrosshairWindow;
 struct LayerSettings;
 
@@ -21,11 +22,26 @@ private:
     QWidget *makeColorRow(LayerSettings &layer);
     QWidget *makeStyleRow(LayerSettings &layer, const QStringList &styles,
                           QComboBox **outCombo = nullptr);
+    QGroupBox *makePresetCard();
+    QGroupBox *makeHotkeyCard();
     QGroupBox *makeDotCard();
     QGroupBox *makeFocusCard();
-    QGroupBox *makeHotkeyCard();
+
+    void onAppearanceChanged();      // 外观参数变更：刷新绘制、持久化并标记预设偏离
+    void rebuildLayerCards();        // 应用预设后重建点心/聚焦卡片以刷新控件值
+    void refreshPresetList();
+    void updatePresetComboTexts();
+    void savePreset();
+    void deletePreset();
+    void applyPreset(int comboIndex);
 
     CrosshairWindow *m_ch;
+    QVBoxLayout *m_lay;
+    QGroupBox *m_dotCardBox;
+    QGroupBox *m_focusCardBox;
+    QComboBox *m_presetCombo;
+    QString m_currentPreset;         // 当前应用的预设名，空为未应用
+    bool m_presetDirty = false;      // 应用预设后参数被修改
 };
 
 #endif // SETTINGSPANEL_H

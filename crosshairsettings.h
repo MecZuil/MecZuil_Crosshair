@@ -27,8 +27,12 @@ struct CrosshairSettings
     quint32 hotkey = 0x0078;             // 高 16 位 MOD_*，低 16 位 VK；默认 F9
 
     static QString iniPath();
+    static QString presetsDir();
     void load();
     void save() const;
+    // 仅读写准星外观参数（两层 + 距离/公转/显隐），供预设文件复用
+    void loadAppearance(const QString &path);
+    void saveAppearance(const QString &path) const;
 };
 
 #endif // CROSSHAIRSETTINGS_H

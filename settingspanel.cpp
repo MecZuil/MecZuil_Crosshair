@@ -4,14 +4,19 @@
 #include <QCheckBox>
 #include <QColorDialog>
 #include <QComboBox>
+#include <QDir>
+#include <QFile>
 #include <QFileDialog>
+#include <QFileInfo>
 #include <QGroupBox>
 #include <QHBoxLayout>
+#include <QInputDialog>
 #include <QKeySequenceEdit>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QSignalBlocker>
 #include <QSlider>
 #include <QSpinBox>
 #include <QVBoxLayout>
@@ -138,13 +143,18 @@ SettingsPanel::SettingsPanel(CrosshairWindow *crosshair)
         QSpinBox:disabled{background:#f0f1f4;color:#a0a4ac;}
         QSlider::groove:horizontal:disabled{background:#eceef2;}
         QSlider::handle:horizontal:disabled{border-color:#c9cdd6;}
+        QPushButton#dangerBtn:hover{background:#f05145;}
+        QPushButton#dangerBtn:pressed{background:#d43d32;}
     )");
-    QVBoxLayout *lay = new QVBoxLayout(this);
-    lay->setContentsMargins(6, 6, 6, 6);
-    lay->setSpacing(6);
-    lay->addWidget(makeHotkeyCard());
-    lay->addWidget(makeDotCard());
-    lay->addWidget(makeFocusCard());
+    m_lay = new QVBoxLayout(this);
+    m_lay->setContentsMargins(6, 6, 6, 6);
+    m_lay->setSpacing(6);
+    m_lay->addWidget(makePresetCard());
+    m_lay->addWidget(makeHotkeyCard());
+    m_dotCardBox = makeDotCard();
+    m_focusCardBox = makeFocusCard();
+    m_lay->addWidget(m_dotCardBox);
+    m_lay->addWidget(m_focusCardBox);
     setFixedWidth(300);
     adjustSize();
 }
@@ -193,7 +203,7 @@ QWidget *SettingsPanel::makeStyleRow(LayerSettings &layer,
     connect(combo, static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
             this, [this, &layer](int i) {
         layer.style = i;
-        m_ch->applySettings();
+        onAppearanceChanged();
     });
     connect(imgBtn, &QPushButton::clicked, this, [this, &layer, combo]() {
         const QString path = QFileDialog::getOpenFileName(
@@ -204,7 +214,7 @@ QWidget *SettingsPanel::makeStyleRow(LayerSettings &layer,
         layer.imagePath = path;
         layer.style = combo->count() - 1;
         combo->setCurrentIndex(layer.style);
-        m_ch->applySettings();
+        onAppearanceChanged();
     });
     lay->addWidget(lab);
     lay->addWidget(combo);
@@ -240,7 +250,7 @@ QWidget *SettingsPanel::makeColorRow(LayerSettings &layer)
             return;
         layer.color = c;
         updateBtn(c);
-        m_ch->applySettings();
+        onAppearanceChanged();
     });
     connect(rgbEdit, &QLineEdit::editingFinished, this,
             [this, &layer, rgbEdit, updateBtn]() {
@@ -256,7 +266,7 @@ QWidget *SettingsPanel::makeColorRow(LayerSettings &layer)
         if (c.isValid()) {
             layer.color = c;
             updateBtn(c);
-            m_ch->applySettings();
+            onAppearanceChanged();
         }
     });
     lay->addWidget(lab);
@@ -273,11 +283,11 @@ QGroupBox *SettingsPanel::makeDotCard()
     lay->addWidget(makeStyleRow(l, {QStringLiteral("圆"), QStringLiteral("方"),
                                     QStringLiteral("三角"), QStringLiteral("自定义图片")}));
     lay->addWidget(makeSliderRow(QStringLiteral("大小"), 1, 200, l.size,
-        [this](int v) { m_ch->settings().dot.size = v; m_ch->applySettings(); }));
+        [this](int v) { m_ch->settings().dot.size = v; onAppearanceChanged(); }));
     lay->addWidget(makeSliderRow(QStringLiteral("自转"), -360, 360, l.rotation,
-        [this](int v) { m_ch->settings().dot.rotation = v; m_ch->applySettings(); }));
+        [this](int v) { m_ch->settings().dot.rotation = v; onAppearanceChanged(); }));
     lay->addWidget(makeSliderRow(QStringLiteral("透明度"), 0, 100, l.opacity,
-        [this](int v) { m_ch->settings().dot.opacity = v; m_ch->applySettings(); }));
+        [this](int v) { m_ch->settings().dot.opacity = v; onAppearanceChanged(); }));
     lay->addWidget(makeColorRow(l));
     return box;
 }
@@ -292,9 +302,9 @@ QGroupBox *SettingsPanel::makeFocusCard()
     lay->addWidget(makeStyleRow(l, {">", "<", ")", "V", "-",
                                     QStringLiteral("自定义图片")}, &styleCombo));
     lay->addWidget(makeSliderRow(QStringLiteral("大小"), 1, 200, l.size,
-        [this](int v) { m_ch->settings().focus.size = v; m_ch->applySettings(); }));
+        [this](int v) { m_ch->settings().focus.size = v; onAppearanceChanged(); }));
     QWidget *widthRow = makeSliderRow(QStringLiteral("粗细"), 1, 30, l.width,
-        [this](int v) { m_ch->settings().focus.width = v; m_ch->applySettings(); });
+        [this](int v) { m_ch->settings().focus.width = v; onAppearanceChanged(); });
     lay->addWidget(widthRow);
     // 自定义图片没有描边粗细可调
     widthRow->setEnabled(l.style != styleCombo->count() - 1);
@@ -303,13 +313,13 @@ QGroupBox *SettingsPanel::makeFocusCard()
         widthRow->setEnabled(i != styleCombo->count() - 1);
     });
     lay->addWidget(makeSliderRow(QStringLiteral("自转"), -360, 360, l.rotation,
-        [this](int v) { m_ch->settings().focus.rotation = v; m_ch->applySettings(); }));
+        [this](int v) { m_ch->settings().focus.rotation = v; onAppearanceChanged(); }));
     lay->addWidget(makeSliderRow(QStringLiteral("透明度"), 0, 100, l.opacity,
-        [this](int v) { m_ch->settings().focus.opacity = v; m_ch->applySettings(); }));
+        [this](int v) { m_ch->settings().focus.opacity = v; onAppearanceChanged(); }));
     lay->addWidget(makeSliderRow(QStringLiteral("距离"), -300, 300, s.focusDistance,
-        [this](int v) { m_ch->settings().focusDistance = v; m_ch->applySettings(); }));
+        [this](int v) { m_ch->settings().focusDistance = v; onAppearanceChanged(); }));
     lay->addWidget(makeSliderRow(QStringLiteral("公转"), -360, 360, s.focusOrbit,
-        [this](int v) { m_ch->settings().focusOrbit = v; m_ch->applySettings(); }));
+        [this](int v) { m_ch->settings().focusOrbit = v; onAppearanceChanged(); }));
     lay->addWidget(makeColorRow(l));
 
     QWidget *visRow = new QWidget;
@@ -326,7 +336,7 @@ QGroupBox *SettingsPanel::makeFocusCard()
         cb->setChecked(s.focusVisible[idx[i]]);
         connect(cb, &QCheckBox::toggled, this, [this, i, idx](bool on) {
             m_ch->settings().focusVisible[idx[i]] = on;
-            m_ch->applySettings();
+            onAppearanceChanged();
         });
         vlay->addWidget(cb);
     }
@@ -357,4 +367,144 @@ QGroupBox *SettingsPanel::makeHotkeyCard()
     });
     lay->addWidget(edit);
     return box;
+}
+
+QGroupBox *SettingsPanel::makePresetCard()
+{
+    QGroupBox *box = new QGroupBox(QStringLiteral("预设"));
+    QHBoxLayout *lay = new QHBoxLayout(box);
+    m_presetCombo = new QComboBox;
+    QPushButton *saveBtn = new QPushButton(QStringLiteral("保存"));
+    QPushButton *delBtn = new QPushButton(QStringLiteral("删除"));
+    delBtn->setObjectName("dangerBtn");
+    connect(m_presetCombo,
+            static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
+            this, &SettingsPanel::applyPreset);
+    connect(saveBtn, &QPushButton::clicked, this, &SettingsPanel::savePreset);
+    connect(delBtn, &QPushButton::clicked, this, &SettingsPanel::deletePreset);
+    lay->addWidget(m_presetCombo, 1);
+    lay->addWidget(saveBtn);
+    lay->addWidget(delBtn);
+    refreshPresetList();
+    return box;
+}
+
+void SettingsPanel::onAppearanceChanged()
+{
+    m_ch->applySettings();
+    if (!m_currentPreset.isEmpty() && !m_presetDirty) {
+        m_presetDirty = true;
+        updatePresetComboTexts();
+    }
+}
+
+void SettingsPanel::rebuildLayerCards()
+{
+    m_lay->removeWidget(m_dotCardBox);
+    m_lay->removeWidget(m_focusCardBox);
+    delete m_dotCardBox;
+    delete m_focusCardBox;
+    m_dotCardBox = makeDotCard();
+    m_focusCardBox = makeFocusCard();
+    m_lay->addWidget(m_dotCardBox);
+    m_lay->addWidget(m_focusCardBox);
+    adjustSize();
+}
+
+void SettingsPanel::refreshPresetList()
+{
+    QSignalBlocker blocker(m_presetCombo);
+    m_presetCombo->clear();
+    const QDir dir(CrosshairSettings::presetsDir());
+    const QStringList files = dir.entryList({"*.ini"}, QDir::Files, QDir::Name);
+    for (const QString &f : files) {
+        const QString name = QFileInfo(f).completeBaseName();
+        m_presetCombo->addItem(name, name);
+    }
+    m_presetCombo->setCurrentIndex(m_presetCombo->findData(m_currentPreset));
+    updatePresetComboTexts();
+}
+
+void SettingsPanel::updatePresetComboTexts()
+{
+    for (int i = 0; i < m_presetCombo->count(); ++i) {
+        const QString name = m_presetCombo->itemData(i).toString();
+        const bool modified = (name == m_currentPreset && m_presetDirty);
+        m_presetCombo->setItemText(i, name + (modified ? QStringLiteral("*") : QString()));
+    }
+}
+
+void SettingsPanel::applyPreset(int comboIndex)
+{
+    if (comboIndex < 0)
+        return;
+    const QString name = m_presetCombo->itemData(comboIndex).toString();
+    const QString path = CrosshairSettings::presetsDir() + "/" + name + ".ini";
+    if (!QFile::exists(path)) {
+        QMessageBox::warning(this, QStringLiteral("预设"),
+                             QStringLiteral("预设文件已被移除，列表已刷新。"));
+        m_currentPreset.clear();
+        m_presetDirty = false;
+        refreshPresetList();
+        return;
+    }
+    m_ch->settings().loadAppearance(path);
+    m_ch->applySettings();
+    m_currentPreset = name;
+    m_presetDirty = false;
+    updatePresetComboTexts();
+    rebuildLayerCards();
+}
+
+void SettingsPanel::savePreset()
+{
+    bool ok = false;
+    const QString name = QInputDialog::getText(this, QStringLiteral("保存预设"),
+                                               QStringLiteral("预设名称："),
+                                               QLineEdit::Normal, QString(),
+                                               &ok).trimmed();
+    if (!ok || name.isEmpty())
+        return;
+    static const QString illegalChars = QStringLiteral("\\/:*?\"<>|");
+    for (const QChar &c : name) {
+        if (illegalChars.contains(c)) {
+            QMessageBox::warning(this, QStringLiteral("保存预设"),
+                                 QStringLiteral("名称不能包含 \\ / : * ? \" < > | 字符。"));
+            return;
+        }
+    }
+    QDir dir(CrosshairSettings::presetsDir());
+    if (!dir.exists() && !dir.mkpath(".")) {
+        QMessageBox::warning(this, QStringLiteral("保存预设"),
+                             QStringLiteral("无法创建 presets 目录。"));
+        return;
+    }
+    const QString path = dir.filePath(name + ".ini");
+    if (QFile::exists(path) &&
+        QMessageBox::question(this, QStringLiteral("保存预设"),
+                              QStringLiteral("预设「%1」已存在，是否覆盖？").arg(name),
+                              QMessageBox::Yes | QMessageBox::No) != QMessageBox::Yes)
+        return;
+    m_ch->settings().saveAppearance(path);
+    m_currentPreset = name;
+    m_presetDirty = false;
+    refreshPresetList();
+}
+
+void SettingsPanel::deletePreset()
+{
+    const int idx = m_presetCombo->currentIndex();
+    if (idx < 0)
+        return;
+    const QString name = m_presetCombo->itemData(idx).toString();
+    if (QMessageBox::question(this, QStringLiteral("删除预设"),
+                              QStringLiteral("确定删除预设「%1」？").arg(name),
+                              QMessageBox::Yes | QMessageBox::No) != QMessageBox::Yes)
+        return;
+    QFile::remove(CrosshairSettings::presetsDir() + "/" + name + ".ini");
+    if (name == m_currentPreset) {
+        m_currentPreset.clear();
+        m_presetDirty = false;
+    }
+    refreshPresetList();
 }

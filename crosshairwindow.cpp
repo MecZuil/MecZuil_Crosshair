@@ -161,9 +161,15 @@ void CrosshairWindow::paintEvent(QPaintEvent *)
         p.setPen(QPen(Qt::white, 2));
         p.drawRect(rect().adjusted(1, 1, -2, -2));
     }
-    const QPoint c = rect().center();
+    // 准星按物理像素绘制：将 painter 缩放到设备像素坐标系，
+    // 大小/粗细/距离参数即为真实像素，不随系统 DPI 缩放变化
+    const qreal dpr = devicePixelRatioF();
+    p.save();
+    p.scale(1.0 / dpr, 1.0 / dpr);
+    const QPoint c = (QPointF(rect().center()) * dpr).toPoint();
     drawDotLayer(p, c);
     drawFocusLayer(p, c);
+    p.restore();
 }
 
 void CrosshairWindow::drawDotLayer(QPainter &p, const QPoint &center)
